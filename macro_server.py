@@ -7,6 +7,14 @@ import comtypes
 from pycaw.pycaw import AudioUtilities, ISimpleAudioVolume, IAudioEndpointVolume
 from ctypes import cast, POINTER
 from comtypes import CLSCTX_ALL
+import ctypes
+import base64
+from PIL import Image
+import win32gui
+import win32ui
+import win32con
+import win32api
+import io
 
 app = Flask(__name__)
 CORS(app)
@@ -14,6 +22,39 @@ CORS(app)
 # Path to TcNo Account Switcher
 switcher_path = r"C:\Program Files\TcNo Account Switcher\TcNo-Acc-Switcher.exe"
 
+def get_icon_from_exe(exe_path):
+    try:
+        large_icons, small_icons = win32gui.ExtractIconEx(exe_path, 0)
+        if not large_icons:
+            return None
+
+        hicon = large_icons[0]
+
+        # Get icon info
+        icon_info = win32gui.GetIconInfo(hicon)
+        bmp = win32ui.CreateBitmapFromHandle(icon_info[4])  # hbmColor
+
+        bmpinfo = bmp.GetInfo()
+        bmpstr = bmp.GetBitmapBits(True)
+
+        img = Image.frombuffer(
+            'RGBA',
+            (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
+            bmpstr, 'raw', 'BGRA', 0, 1
+        )
+        img = img.transpose(Image.FLIP_TOP_BOTTOM)
+
+        # Save to base64
+        buffered = io.BytesIO()
+        img.save(buffered, format="PNG")
+        icon_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+        return icon_base64
+    except Exception as e:
+        print(f"Failed to get high-res icon: {e}")
+        return None
+
+    
 # Launch Applications with a Given Path
 @app.route('/open_app', methods=['POST'])
 def open_app():
@@ -96,11 +137,18 @@ def get_audio_sessions():
 
     for session in sessions:
         if session.Process:
+            try:
+                exe_path = session.Process.exe()
+                icon = get_icon_from_exe(exe_path)
+            except:
+                icon = None
+
             volume = session._ctl.QueryInterface(ISimpleAudioVolume).GetMasterVolume()
             results.append({
                 "name": session.Process.name(),
                 "pid": session.Process.pid,
-                "volume": round(volume * 100, 2)
+                "volume": round(volume * 100, 2),
+                "icon": icon
             })
     
     return jsonify(results)
@@ -138,6 +186,25 @@ def set_master_volume():
 
     return jsonify({"message": f"Master volume set to {volume_level * 100}%"})
 
+# Media keys
+def press_media_key(vk_code):
+    ctypes.windll.user32.keybd_event(vk_code, 0, 0, 0) # key down
+    ctypes.windll.user32.keybd_event(vk_code, 0, 2, 0) # key up
+
+@app.route('/media/play_pause', methods=['POST'])
+def media_play_pause():
+    press_media_key(0xB3)
+    return jsonify({"message": "Play/Pause toggled"}), 200
+
+@app.route('/media/next', methods=['POST'])
+def media_next():
+    press_media_key(0xB0)
+    return jsonify({"message": "Next track"}), 200
+
+@app.route('/media/prev', methods=['POST'])
+def media_prev():
+    press_media_key(0xB1)
+    return jsonify({"message": "Previous track"}), 200
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5001, debug=True)
