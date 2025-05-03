@@ -12,8 +12,6 @@ import base64
 from PIL import Image
 import win32gui
 import win32ui
-import win32con
-import win32api
 import io
 
 app = Flask(__name__)
