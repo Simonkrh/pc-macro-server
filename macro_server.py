@@ -20,18 +20,20 @@ CORS(app)
 # Path to TcNo Account Switcher
 switcher_path = r"C:\Program Files\TcNo Account Switcher\TcNo-Acc-Switcher.exe"
 
+icon_cache = {}
+
 def get_icon_from_exe(exe_path):
+    if exe_path in icon_cache:
+        return icon_cache[exe_path]
+    
     try:
-        large_icons, small_icons = win32gui.ExtractIconEx(exe_path, 0)
+        large_icons, _ = win32gui.ExtractIconEx(exe_path, 0)
         if not large_icons:
             return None
 
         hicon = large_icons[0]
-
-        # Get icon info
         icon_info = win32gui.GetIconInfo(hicon)
-        bmp = win32ui.CreateBitmapFromHandle(icon_info[4])  # hbmColor
-
+        bmp = win32ui.CreateBitmapFromHandle(icon_info[4])
         bmpinfo = bmp.GetInfo()
         bmpstr = bmp.GetBitmapBits(True)
 
@@ -41,15 +43,14 @@ def get_icon_from_exe(exe_path):
             bmpstr, 'raw', 'BGRA', 0, 1
         )
         img = img.transpose(Image.FLIP_TOP_BOTTOM)
-
-        # Save to base64
         buffered = io.BytesIO()
         img.save(buffered, format="PNG")
         icon_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
 
+        icon_cache[exe_path] = icon_base64
         return icon_base64
     except Exception as e:
-        print(f"Failed to get high-res icon: {e}")
+        print(f"Failed to get high-res icon for {exe_path}: {e}")
         return None
 
     
@@ -125,9 +126,9 @@ def run_command():
     else:
         return jsonify({"error": "No command provided"}), 400
 
-# Get list of current audio sessions (apps)
-@app.route('/audio_sessions', methods=['GET'])
-def get_audio_sessions():
+# session name, PID, cached icon
+@app.route('/audio_sessions_metadata', methods=['GET'])
+def get_audio_sessions_metadata():
     comtypes.CoInitialize()
 
     sessions = AudioUtilities.GetAllSessions()
@@ -138,17 +139,35 @@ def get_audio_sessions():
             try:
                 exe_path = session.Process.exe()
                 icon = get_icon_from_exe(exe_path)
-            except:
-                icon = None
-
-            volume = session._ctl.QueryInterface(ISimpleAudioVolume).GetMasterVolume()
-            results.append({
-                "name": session.Process.name(),
-                "pid": session.Process.pid,
-                "volume": round(volume * 100, 2),
-                "icon": icon
-            })
+                results.append({
+                    "name": session.Process.name(),
+                    "pid": session.Process.pid,
+                    "icon": icon
+                })
+            except Exception as e:
+                print(f"Error in metadata fetch: {e}")
     
+    return jsonify(results)
+
+# Session name and volume only
+@app.route('/audio_sessions_volume', methods=['GET'])
+def get_audio_sessions_volume():
+    comtypes.CoInitialize()
+
+    sessions = AudioUtilities.GetAllSessions()
+    results = []
+
+    for session in sessions:
+        if session.Process:
+            try:
+                volume = session._ctl.QueryInterface(ISimpleAudioVolume).GetMasterVolume()
+                results.append({
+                    "name": session.Process.name(),
+                    "volume": round(volume * 100, 2)
+                })
+            except Exception as e:
+                print(f"Error in volume fetch: {e}")
+
     return jsonify(results)
 
 # Set volume for a specific app
