@@ -126,7 +126,7 @@ def run_command():
     else:
         return jsonify({"error": "No command provided"}), 400
 
-# session name, PID, cached icon
+# session name, PID, cached icon, volume
 @app.route('/audio_sessions_metadata', methods=['GET'])
 def get_audio_sessions_metadata():
     comtypes.CoInitialize()
@@ -137,12 +137,14 @@ def get_audio_sessions_metadata():
     for session in sessions:
         if session.Process:
             try:
+                volume = session._ctl.QueryInterface(ISimpleAudioVolume).GetMasterVolume()
                 exe_path = session.Process.exe()
                 icon = get_icon_from_exe(exe_path)
                 results.append({
                     "name": session.Process.name(),
                     "pid": session.Process.pid,
-                    "icon": icon
+                    "icon": icon,
+                    "volume": round(volume * 100, 2)
                 })
             except Exception as e:
                 print(f"Error in metadata fetch: {e}")
