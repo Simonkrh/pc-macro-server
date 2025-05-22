@@ -175,3 +175,7 @@ log.txt
 
 # Launcher
 *.vbs
+
+# Macros
+macros.json
+macro-icons/

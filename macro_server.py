@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 import subprocess
@@ -13,13 +13,31 @@ from PIL import Image
 import win32gui
 import win32ui
 import io
+import json
+from threading import Lock
 
 app = Flask(__name__)
 CORS(app)
 
+# Macros
+MACROS_FILE = 'macros.json'
+if not os.path.exists(MACROS_FILE):
+    with open(MACROS_FILE, 'w') as f:
+        json.dump({
+            "grid": {
+                "columns": 6,
+                "rows": 2
+            },
+            "macros": []
+        }, f, indent=2)
+MACROS_UPLOAD_FOLDER = os.path.join(os.getcwd(), 'macro-icons')
+os.makedirs(MACROS_UPLOAD_FOLDER, exist_ok=True)
+
 # Path to TcNo Account Switcher
 switcher_path = r"C:\Program Files\TcNo Account Switcher\TcNo-Acc-Switcher.exe"
 
+
+macros_lock = Lock()
 icon_cache = {}
 
 def get_icon_from_exe(exe_path):
@@ -53,7 +71,6 @@ def get_icon_from_exe(exe_path):
         print(f"Failed to get high-res icon for {exe_path}: {e}")
         return None
 
-    
 # Launch Applications with a Given Path
 @app.route('/open_app', methods=['POST'])
 def open_app():
@@ -95,38 +112,70 @@ def switch_account():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-# Simulate Keyboard Key Press
-@app.route('/press_key', methods=['POST'])
-def press_key():
-    data = request.json
-    key = data.get('key')
-
-    if key:
+# Macros grid and macros with label, macro, icon
+@app.route('/macros', methods=['GET'])
+def get_macros():
+    with macros_lock:
         try:
-            pyautogui.press(key)
-            return jsonify({"status": "success", "message": f"Pressed {key}"}), 200
+            with open(MACROS_FILE, 'r') as f:
+                data = json.load(f)
+            return jsonify(data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    else:
-        return jsonify({"error": "No key provided"}), 400
+            return jsonify({"error": f"Failed to load macros: {str(e)}"}), 500
 
-# Run Custom Commands 
-@app.route('/run_command', methods=['POST'])
-def run_command():
-    data = request.json
-    command = data.get('command')
+# Create macro with label, macro, icon path
+@app.route('/macros', methods=['POST'])
+def add_macro():
+    new_macro = request.json
+    if not new_macro:
+        return jsonify({'error': 'No macro data provided'}), 400
+    required_keys = ['label', 'macro', 'icon']
+    if not all(k in new_macro for k in required_keys):
+        return jsonify({'error': 'Invalid macro format'}), 400
 
-    if command:
+    with macros_lock:
         try:
-            subprocess.Popen(command, shell=True)
-            return jsonify({"status": "success", "message": f"Executed: {command}"}), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    else:
-        return jsonify({"error": "No command provided"}), 400
+            with open(MACROS_FILE, 'r') as f:
+                data = json.load(f)
 
-# session name, PID, cached icon, volume
+            if 'macros' not in data or not isinstance(data['macros'], list):
+                data['macros'] = []
+
+            if 'grid' not in data:
+                data['grid'] = { "columns": 6, "rows": 2 }
+
+            data['macros'].append(new_macro)
+
+            with open(MACROS_FILE, 'w') as f:
+                json.dump(data, f, indent=2)
+
+            return jsonify({'message': 'Macro added successfully'}), 200
+
+        except Exception as e:
+            return jsonify({'error': f"Failed to add macro: {str(e)}"}), 500
+
+# Send icon for macro
+@app.route('/macro-icons/<filename>')
+def serve_macro_icon(filename):
+    return send_from_directory(MACROS_UPLOAD_FOLDER, filename)
+
+# Store icon for macro
+@app.route('/upload_macro_icon', methods=['POST'])
+def upload_macro_icon():
+    if 'icon' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+
+    file = request.files['icon']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    filename = file.filename
+    file_path = os.path.join(MACROS_UPLOAD_FOLDER, filename)
+    file.save(file_path)
+
+    return jsonify({'icon_path': f'/macro-icons/{filename}'}), 200
+
+# Audio session name, PID, cached icon, volume
 @app.route('/audio_sessions_metadata', methods=['GET'])
 def get_audio_sessions_metadata():
     comtypes.CoInitialize()
@@ -225,5 +274,35 @@ def media_prev():
     press_media_key(0xB1)
     return jsonify({"message": "Previous track"}), 200
 
+# Simulate Keyboard Key Press
+@app.route('/press_key', methods=['POST'])
+def press_key():
+    data = request.json
+    key = data.get('key')
+
+    if key:
+        try:
+            pyautogui.press(key)
+            return jsonify({"status": "success", "message": f"Pressed {key}"}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    else:
+        return jsonify({"error": "No key provided"}), 400
+
+# Run Custom Commands 
+@app.route('/run_command', methods=['POST'])
+def run_command():
+    data = request.json
+    command = data.get('command')
+
+    if command:
+        try:
+            subprocess.Popen(command, shell=True)
+            return jsonify({"status": "success", "message": f"Executed: {command}"}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    else:
+        return jsonify({"error": "No command provided"}), 400
+    
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5001, debug=False)
