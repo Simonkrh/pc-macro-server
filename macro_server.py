@@ -123,13 +123,14 @@ def get_macros():
         except Exception as e:
             return jsonify({"error": f"Failed to load macros: {str(e)}"}), 500
 
-# Create macro with label, macro, icon path
+# Create macro with label, macro, icon and position
 @app.route('/macros', methods=['POST'])
 def add_macro():
     new_macro = request.json
     if not new_macro:
         return jsonify({'error': 'No macro data provided'}), 400
-    required_keys = ['label', 'macro', 'icon']
+
+    required_keys = ['label', 'macro', 'icon', 'position']
     if not all(k in new_macro for k in required_keys):
         return jsonify({'error': 'Invalid macro format'}), 400
 
@@ -138,13 +139,22 @@ def add_macro():
             with open(MACROS_FILE, 'r') as f:
                 data = json.load(f)
 
-            if 'macros' not in data or not isinstance(data['macros'], list):
-                data['macros'] = []
+            # Ensure macros and grid exist
+            macros = data.setdefault('macros', [])
+            grid = data.setdefault('grid', {"columns": 6, "rows": 2})
+            max_slots = grid["columns"] * grid["rows"]
 
-            if 'grid' not in data:
-                data['grid'] = { "columns": 6, "rows": 2 }
+            position = new_macro['position']
 
-            data['macros'].append(new_macro)
+            # Validate position range
+            if not isinstance(position, int) or position < 0 or position >= max_slots:
+                return jsonify({'error': f'Position must be between 0 and {max_slots - 1}'}), 400
+
+            # Check for occupied position
+            if any(m.get('position') == position for m in macros):
+                return jsonify({'error': f'Position {position} is already taken'}), 400
+
+            macros.append(new_macro)
 
             with open(MACROS_FILE, 'w') as f:
                 json.dump(data, f, indent=2)
@@ -153,6 +163,7 @@ def add_macro():
 
         except Exception as e:
             return jsonify({'error': f"Failed to add macro: {str(e)}"}), 500
+
 
 # Send icon for macro
 @app.route('/macro-icons/<filename>')
