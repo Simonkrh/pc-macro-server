@@ -164,7 +164,6 @@ def add_macro():
         except Exception as e:
             return jsonify({'error': f"Failed to add macro: {str(e)}"}), 500
 
-
 # Send icon for macro
 @app.route('/macro-icons/<filename>')
 def serve_macro_icon(filename):
@@ -185,6 +184,63 @@ def upload_macro_icon():
     file.save(file_path)
 
     return jsonify({'icon_path': f'/macro-icons/{filename}'}), 200
+
+# Delete macro
+@app.route('/delete_macro', methods=['POST'])
+def delete_macro():
+    data = request.get_json()
+    position = data.get('position')
+
+    if position is None:
+        return jsonify({'error': 'Position is required'}), 400
+
+    with macros_lock:
+        try:
+            with open(MACROS_FILE, 'r') as f:
+                config = json.load(f)
+
+            macros = config.get('macros', [])
+            updated_macros = [m for m in macros if m.get('position') != position]
+            config['macros'] = updated_macros
+
+            with open(MACROS_FILE, 'w') as f:
+                json.dump(config, f, indent=2)
+
+            return jsonify({'message': f'Macro at position {position} deleted'}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+# Swap position of two macros
+@app.route('/swap_macros', methods=['POST'])
+def swap_macros():
+    data = request.get_json()
+    from_pos = data.get('from')
+    to_pos = data.get('to')
+
+    if from_pos is None or to_pos is None:
+        return jsonify({'error': 'Invalid positions'}), 400
+
+    with macros_lock:
+        try:
+            with open(MACROS_FILE, 'r') as f:
+                config = json.load(f)
+
+            macros = config.get('macros', [])
+
+            macro_from = next((m for m in macros if m.get('position') == from_pos), None)
+            macro_to = next((m for m in macros if m.get('position') == to_pos), None)
+
+            if macro_from:
+                macro_from['position'] = to_pos
+            if macro_to:
+                macro_to['position'] = from_pos
+
+            with open(MACROS_FILE, 'w') as f:
+                json.dump(config, f, indent=2)
+
+            return jsonify({'message': 'Swap complete'}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
 # Audio session name, PID, cached icon, volume
 @app.route('/audio_sessions_metadata', methods=['GET'])
