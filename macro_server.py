@@ -123,6 +123,33 @@ def get_macros():
         except Exception as e:
             return jsonify({"error": f"Failed to load macros: {str(e)}"}), 500
 
+# Resize grid
+@app.route('/resize_grid', methods=['POST'])
+def resize_grid():
+    data = request.get_json()
+    columns = data.get('columns')
+    rows = data.get('rows')
+
+    if not isinstance(columns, int) or not isinstance(rows, int) or columns < 1 or rows < 1:
+        return jsonify({'error': 'Invalid grid dimensions'}), 400
+
+    with macros_lock:
+        with open(MACROS_FILE, 'r') as f:
+            config = json.load(f)
+
+        max_index = columns * rows
+        macros = config.get('macros', [])
+
+        if any(m.get('position', 0) >= max_index for m in macros):
+            return jsonify({'error': 'Grid size too small. Move or delete macros outside bounds first.'}), 400
+
+        config['grid'] = {'columns': columns, 'rows': rows}
+
+        with open(MACROS_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+
+    return jsonify({'message': 'Grid resized successfully'}), 200
+
 # Create macro with label, macro, icon and position
 @app.route('/macros', methods=['POST'])
 def add_macro():
