@@ -11,6 +11,11 @@ Near the top of `macro_server.py`, update this line to match the install locatio
 switcher_path = r"C:\Program Files\TcNo Account Switcher\TcNo-Acc-Switcher.exe"
 ```
 
+**2 Install requirments**
+```bash
+pip install -r requirements.txt
+```
+
 **2. Run the Server**
 
 ```bash
