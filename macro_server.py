@@ -4,8 +4,8 @@ import os
 import subprocess
 import pyautogui
 import comtypes
-from pycaw.pycaw import AudioUtilities, ISimpleAudioVolume, IAudioEndpointVolume
-from ctypes import cast, POINTER
+from pycaw.pycaw import AudioUtilities, ISimpleAudioVolume, IAudioEndpointVolume, IAudioMeterInformation
+from ctypes import cast, POINTER, c_float
 from comtypes import CLSCTX_ALL
 import ctypes
 import base64
@@ -15,6 +15,9 @@ import win32ui
 import io
 import json
 from threading import Lock
+from pyaudiodevice.audio_common import AudioCommon
+
+common = AudioCommon() 
 
 app = Flask(__name__)
 CORS(app)
@@ -347,6 +350,46 @@ def set_master_volume():
     volume.SetMasterVolumeLevelScalar(volume_level, None)
 
     return jsonify({"message": f"Master volume set to {volume_level * 100}%"})
+
+# Get audio outputs
+@app.route("/audio_output_devices", methods=["GET"])
+def list_playback_devices():
+    comtypes.CoInitialize()
+
+    try:
+        default_id = AudioUtilities.GetSpeakers().GetId()
+
+        dev_dict = common.get_audio_device_list()
+
+        payload = [
+            {
+                "id":   entry["ID"],
+                "name": entry["Name"],
+                "is_default": entry["ID"] == default_id
+            }
+            for entry in dev_dict.values()
+            if entry.get("Type", "").lower() == "playback"
+        ]
+
+        return jsonify(payload), 200
+
+    finally:
+        comtypes.CoUninitialize()
+
+# Set audio output
+@app.route("/set_audio_output_device", methods=["POST"])
+def set_playback_device():
+    data   = request.get_json(force=True) or {}
+    dev_id = data.get("device_id")
+
+    if not dev_id:
+        return jsonify({"error": "device_id missing"}), 400
+
+    try:
+        common.set_default_only_device_by_id(dev_id)
+        return jsonify({"message": f"default output set to {dev_id}"}), 200
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 # Media keys
 def press_media_key(vk_code):

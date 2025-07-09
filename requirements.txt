@@ -5,3 +5,4 @@ comtypes
 pycaw
 Pillow
 pywin32
+pyaudiodevice
