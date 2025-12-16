@@ -496,5 +496,20 @@ def run_command():
         return jsonify({"error": "No command provided"}), 400
 
 
+@app.route("/type_text", methods=["POST"])
+def type_text():
+    data = request.get_json(force=True) or {}
+    text = data.get("text", "")
+
+    if not isinstance(text, str) or text == "":
+        return jsonify({"error": "text is required"}), 400
+
+    try:
+        pyautogui.write(text, interval=0.01)
+        return jsonify({"message": "Text typed"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=False)
