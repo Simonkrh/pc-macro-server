@@ -1,0 +1,74 @@
+{
+  "grid": {
+    "columns": 6,
+    "rows": 3
+  },
+  "macros": [
+    {
+      "icon": "/macro-icons/sikonmain.png",
+      "label": "SikonMain",
+      "macro": "switch_account:76561198197834043",
+      "position": 12
+    },
+    {
+      "icon": "/macro-icons/sikoncs.png",
+      "label": "SikonCS",
+      "macro": "switch_account:76561198234445456",
+      "position": 13
+    },
+    {
+      "icon": "/macro-icons/sikon2.png",
+      "label": "Sikon2",
+      "macro": "switch_account:76561198335258974",
+      "position": 14
+    },
+    {
+      "icon": "/macro-icons/Firefox.png",
+      "label": "Firefox",
+      "macro": "open_app:\"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Firefox.lnk\"",
+      "position": 0
+    },
+    {
+      "icon": "/macro-icons/Discord.png",
+      "label": "Discord",
+      "macro": "open_app:\"C:\\Users\\simon\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Discord Inc\\Discord.lnk\"",
+      "position": 1
+    },
+    {
+      "icon": "/macro-icons/Steam.png",
+      "label": "Steam",
+      "macro": "open_app:\"C:\\Users\\simon\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Steam\\Steam.lnk\"",
+      "position": 6
+    },
+    {
+      "icon": "/macro-icons/Spotify.png",
+      "label": "Spotify",
+      "macro": "open_app:spotify:",
+      "position": 2
+    },
+    {
+      "icon": "/macro-icons/Counter-Strike_2.png",
+      "label": "CS2",
+      "macro": "open_app:\"C:\\Users\\simon\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Steam\\Counter-Strike 2.url\"",
+      "position": 7
+    },
+    {
+      "icon": "/macro-icons/rocketleague.png",
+      "label": "RL",
+      "macro": "open_app:\"C:\\Users\\simon\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Steam\\Rocket League.url\"",
+      "position": 8
+    },
+    {
+      "icon": "/macro-icons/SikonIcon.png",
+      "label": "SSHSurvival",
+      "macro": "type_text:ssh mc-survival@192.168.1.8<enter><wait:2000>Olabil99Survival<enter>",
+      "position": 16
+    },
+    {
+      "icon": "/macro-icons/Konradkh.png",
+      "label": "SSHCreative",
+      "macro": "type_text:ss mc-creative@192.168.1.7<enter><wait:2000>Olabil99Creative<enter>",
+      "position": 17
+    }
+  ]
+}

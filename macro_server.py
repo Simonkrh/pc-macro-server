@@ -86,6 +86,51 @@ def get_icon_from_exe(exe_path):
         return None
 
 
+def validate_full_config(cfg):
+    if not isinstance(cfg, dict):
+        return "Root must be an object"
+
+    grid = cfg.get("grid")
+    macros = cfg.get("macros")
+
+    if not isinstance(grid, dict):
+        return "Missing/invalid grid"
+    if not isinstance(grid.get("columns"), int) or grid["columns"] < 1:
+        return "grid.columns must be int >= 1"
+    if not isinstance(grid.get("rows"), int) or grid["rows"] < 1:
+        return "grid.rows must be int >= 1"
+    if not isinstance(macros, list):
+        return "macros must be an array"
+
+    max_slots = grid["columns"] * grid["rows"]
+    seen = set()
+
+    for m in macros:
+        if not isinstance(m, dict):
+            return "Each macro must be an object"
+        for k in ("label", "macro", "icon", "position"):
+            if k not in m:
+                return f"Macro missing key: {k}"
+
+        if not isinstance(m["label"], str):
+            return "macro.label must be string"
+        if not isinstance(m["macro"], str):
+            return "macro.macro must be string"
+        if not isinstance(m["icon"], str):
+            return "macro.icon must be string"
+        if not isinstance(m["position"], int):
+            return "macro.position must be integer"
+
+        pos = m["position"]
+        if pos < 0 or pos >= max_slots:
+            return f"macro.position {pos} out of bounds (0..{max_slots - 1})"
+        if pos in seen:
+            return f"Duplicate macro position: {pos}"
+        seen.add(pos)
+
+    return None
+
+
 # Launch Applications with a Given Path
 @app.route("/open_app", methods=["POST"])
 def open_app():
@@ -503,6 +548,7 @@ def run_command():
         return jsonify({"error": "No command provided"}), 400
 
 
+# Type Text
 @app.route("/type_text", methods=["POST"])
 def type_text():
     data = request.get_json(force=True) or {}
@@ -529,6 +575,34 @@ def type_text():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# Edit macros.json directly with validation
+@app.route("/macros_raw", methods=["PUT"])
+def overwrite_macros():
+    cfg = request.get_json(force=True, silent=True)
+    if cfg is None:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    err = validate_full_config(cfg)
+    if err:
+        return jsonify({"error": err}), 400
+
+    with macros_lock:
+        # optional backup
+        try:
+            if os.path.exists(MACROS_FILE):
+                with open(MACROS_FILE, "r", encoding="utf-8") as f:
+                    old = f.read()
+                with open(MACROS_FILE + ".bak", "w", encoding="utf-8") as f:
+                    f.write(old)
+        except Exception as e:
+            print("Backup failed:", e)
+
+        with open(MACROS_FILE, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+
+    return jsonify({"message": "macros.json overwritten"}), 200
 
 
 if __name__ == "__main__":
