@@ -6,3 +6,4 @@ pycaw
 Pillow
 pywin32
 pyaudiodevice
+keyboard

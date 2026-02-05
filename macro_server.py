@@ -23,9 +23,16 @@ from threading import Lock
 import warnings
 from pycaw.constants import DEVICE_STATE, EDataFlow
 from pycaw.pycaw import AudioUtilities
+import keyboard
+import re
+import time
 
 app = Flask(__name__)
 CORS(app)
+
+COMMAND_PATTERN = re.compile(
+    r"<(enter|wait:\d+)>"
+)  # Commands for type_text macro endpoint
 
 # Macros
 MACROS_FILE = "macros.json"
@@ -505,8 +512,21 @@ def type_text():
         return jsonify({"error": "text is required"}), 400
 
     try:
-        pyautogui.write(text, interval=0.01)
-        return jsonify({"message": "Text typed"}), 200
+        parts = COMMAND_PATTERN.split(text)
+
+        for part in parts:
+            if part == "enter":
+                keyboard.press_and_release("enter")
+
+            elif part.startswith("wait:"):
+                ms = int(part.split(":")[1])
+                time.sleep(ms / 1000)
+
+            else:
+                keyboard.write(part, delay=0.01)
+
+        return jsonify({"message": "Macro executed"}), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
