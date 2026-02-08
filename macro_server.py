@@ -27,6 +27,7 @@ import keyboard
 import re
 import time
 import shlex
+import traceback
 
 app = Flask(__name__)
 CORS(app)
@@ -98,20 +99,57 @@ def open_app():
         return jsonify({"error": "No application path provided"}), 400
 
     try:
+        if not isinstance(app_path, str):
+            return jsonify({"error": "app_path must be a string"}), 400
+
+        app_path = app_path.strip()
+        # Be tolerant of clients that accidentally include surrounding quotes.
+        app_path = app_path.strip("'\"").strip()
+
+        if not app_path:
+            return jsonify({"error": "No application path provided"}), 400
+
         if isinstance(launch_params, str):
-            params = shlex.split(launch_params, posix=False)
+            try:
+                params = shlex.split(launch_params, posix=False)
+            except ValueError as exc:
+                return jsonify({"error": f"Invalid launch_params: {exc}"}), 400
         elif isinstance(launch_params, list):
             params = [str(p) for p in launch_params]
         else:
             return jsonify({"error": "launch_params must be a string or list"}), 400
 
-        cmd = [app_path, *params]
-        subprocess.Popen(cmd)
+        is_drive_path = (
+            len(app_path) >= 3
+            and app_path[1] == ":"
+            and app_path[0].isalpha()
+            and app_path[2] in ("\\", "/")
+        )
+        is_uri_target = bool(re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", app_path)) and (
+            not is_drive_path
+        )
+        is_shortcut = app_path.lower().endswith(".lnk")
+
+        if is_uri_target or is_shortcut:
+            if params:
+                return (
+                    jsonify(
+                        {
+                            "error": "launch_params are not supported for URI or .lnk targets. Use a direct executable path when passing launch parameters."
+                        }
+                    ),
+                    400,
+                )
+            os.startfile(app_path)
+        else:
+            cmd = [app_path, *params]
+            subprocess.Popen(cmd)
+
         return (
             jsonify(
                 {
                     "status": "success",
-                    "message": f"Launched {' '.join(cmd)}",
+                    "message": f"Launched {app_path}",
                     "app_path": app_path,
                     "launch_params": params,
                 }
@@ -119,6 +157,7 @@ def open_app():
             200,
         )
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
