@@ -26,6 +26,7 @@ from pycaw.pycaw import AudioUtilities
 import keyboard
 import re
 import time
+import shlex
 
 app = Flask(__name__)
 CORS(app)
@@ -89,15 +90,34 @@ def get_icon_from_exe(exe_path):
 # Launch Applications with a Given Path
 @app.route("/open_app", methods=["POST"])
 def open_app():
-    data = request.json
-    app_path = data.get("app_path")
+    data = request.get_json(force=True) or {}
+    app_path = data.get("app_path", "")
+    launch_params = data.get("launch_params", [])
 
     if not app_path:
         return jsonify({"error": "No application path provided"}), 400
 
     try:
-        os.startfile(app_path)
-        return jsonify({"status": "success", "message": f"Launched {app_path}"}), 200
+        if isinstance(launch_params, str):
+            params = shlex.split(launch_params, posix=False)
+        elif isinstance(launch_params, list):
+            params = [str(p) for p in launch_params]
+        else:
+            return jsonify({"error": "launch_params must be a string or list"}), 400
+
+        cmd = [app_path, *params]
+        subprocess.Popen(cmd)
+        return (
+            jsonify(
+                {
+                    "status": "success",
+                    "message": f"Launched {' '.join(cmd)}",
+                    "app_path": app_path,
+                    "launch_params": params,
+                }
+            ),
+            200,
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
